@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <link type="text/css" rel="stylesheet" href="styles.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap');
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        nav {
+            background-color: #f8f8f8;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        nav a {
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+            padding: 5px 10px;
+            margin: 0 5px;
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-between;
+            padding: 0;
+        }
+        .sidebar {
+            width: 17%;
+            margin: 0;
+            padding: 0;
+        }
+        .task-area {
+            width: 80%; 
+            min-width: 600px; /* 幅を固定 */
+        }
+        .matrix {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 20px;
+            height: 450px; 
+            margin-top: 20px;
+            width: 100%;
+        }
+        .quadrant {
+            border: 1px solid #ccc;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .tasks {
+            margin-top: 10px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .task {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <img src="grape.png" alt="logo" style="width: 100px; height: auto; margin-bottom: 10px; margin-top: 10px;">
+            <h3>Add Task</h3>
+            <input type="text" id="taskInput" placeholder="Enter your task">
+            <input type="datetime-local" id="dueDate">
+            <select id="importance">
+                <option value="urgent-important">Your Mission</option>
+                <option value="not-urgent-important">Self Investment</option>
+                <option value="urgent-not-important">Time Limited</option>
+                <option value="not-urgent-not-important">Wish List</option>
+            </select>
+            <button onclick="addTasks()">Add Task</button>
+        </div>
+
+        <div class="task-area">
+            <nav>
+                <a href="index.html">Home</a>
+                <a href="timemanagement.html">Time Management Matrix</a> 
+                <a href="be.html">Behavioral Economics</a>
+            </nav>
+
+            <h3>Progress</h3>
+            <progress id="progressBar" value="0" max="100"></progress>
+            <span id="progressText">0%</span>
+
+            <h3>Time Management Matrix</h3>
+            <div class="matrix">
+                <div class="quadrant" id="urgent-important" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <h4>Your Mission</h4>
+                    <div class="tasks" id="tasks-urgent-important"></div>
+                </div>
+                <div class="quadrant" id="not-urgent-important" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <h4>Self Investment</h4>
+                    <div class="tasks" id="tasks-not-urgent-important"></div>
+                </div>
+                <div class="quadrant" id="urgent-not-important" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <h4>Time Limited</h4>
+                    <div class="tasks" id="tasks-urgent-not-important"></div>
+                </div>
+                <div class="quadrant" id="not-urgent-not-important" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <h4>Wish List</h4>
+                    <div class="tasks" id="tasks-not-urgent-not-important"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let taskIdCounter = 1;
+
+        // Load tasks from localStorage
+        window.onload = function() {
+            const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            storedTasks.forEach(task => {
+                addStoredTask(task);
+            });
+
+            // Add default tasks
+            addDefaultTasks();
+            updateProgress();
+        };
+
+        function addDefaultTasks() {
+            const defaultTasks = [
+                { id: 'task-default-1', text: 'Complete project report', dueDate: '2024-11-10T10:00', importance: 'urgent-important', completed: false },
+                { id: 'task-default-2', text: 'Read a book on personal development', dueDate: '2024-11-15T10:00', importance: 'not-urgent-important', completed: false },
+                { id: 'task-default-3', text: 'Submit application for internship', dueDate: '2024-11-20T10:00', importance: 'urgent-not-important', completed: false },
+                { id: 'task-default-4', text: 'Plan a vacation', dueDate: '2024-12-01T10:00', importance: 'not-urgent-not-important', completed: false },
+            ];
+
+            defaultTasks.forEach(task => {
+                addStoredTask(task);
+            });
+        }
+
+        function addTasks() {
+            const taskInput = document.getElementById("taskInput").value;
+            const dueDate = document.getElementById("dueDate").value;
+            const importance = document.getElementById("importance").value;
+
+            if (!taskInput) {
+                alert("Please enter a task.");
+                return;
+            }
+
+            const quadrantMap = {
+                "urgent-important": "tasks-urgent-important",
+                "not-urgent-important": "tasks-not-urgent-important",
+                "urgent-not-important": "tasks-urgent-not-important",
+                "not-urgent-not-important": "tasks-not-urgent-not-important"
+            };
+
+            const newTaskId = "task-" + taskIdCounter++;
+            const tasksContainer = document.getElementById(quadrantMap[importance]);
+
+            const taskHTML = `
+                <div class="task" id="${newTaskId}" draggable="true" ondragstart="event.dataTransfer.setData('text', this.id)">
+                    <input type="text" value="${taskInput}" onchange="updateTaskText('${newTaskId}', this.value)">
+                    <input type="datetime-local" value="${dueDate}" onchange="updateDueDate('due-${newTaskId}', this.value)">
+                    <input type="checkbox" onchange="markAsCompleted(this)">
+                    <button class="delete-button" onclick="deleteTask('${newTaskId}')">Delete</button>
+                </div>
+            `;
+            tasksContainer.insertAdjacentHTML("beforeend", taskHTML);
+            storeTaskInLocalStorage({ id: newTaskId, text: taskInput, dueDate: dueDate, importance: importance, completed: false });
+            document.getElementById("taskInput").value = '';
+            document.getElementById("dueDate").value = '';
+            updateProgress();
+        }
+
+        function storeTaskInLocalStorage(task) {
+            const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            storedTasks.push(task);
+            localStorage.setItem('tasks', JSON.stringify(storedTasks));
+        }
+
+        function addStoredTask(task) {
+            const quadrantMap = {
+                "urgent-important": "tasks-urgent-important",
+                "not-urgent-important": "tasks-not-urgent-important",
+                "urgent-not-important": "tasks-urgent-not-important",
+                "not-urgent-not-important": "tasks-not-urgent-not-important"
+            };
+
+            const tasksContainer = document.getElementById(quadrantMap[task.importance]);
+
+            const taskHTML = `
+                <div class="task" id="${task.id}" draggable="true" ondragstart="event.dataTransfer.setData('text', this.id)">
+                    <input type="text" value="${task.text}" onchange="updateTaskText('${task.id}', this.value)">
+                    <input type="datetime-local" value="${task.dueDate}" onchange="updateDueDate('due-${task.id}', this.value)">
+                    <input type="checkbox" onchange="markAsCompleted(this)" ${task.completed ? 'checked' : ''}>
+                    <button class="delete-button" onclick="deleteTask('${task.id}')">Delete</button>
+                </div>
+            `;
+            tasksContainer.insertAdjacentHTML("beforeend", taskHTML);
+        }
+
+        function markAsCompleted(checkbox) {
+            const taskDiv = checkbox.parentElement;
+            taskDiv.classList.toggle("completed", checkbox.checked);
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const allTasks = document.querySelectorAll('.task');
+            const totalTasks = allTasks.length;
+            const completedTasks = document.querySelectorAll('.task input[type="checkbox"]:checked').length;
+            const progressBar = document.getElementById("progressBar");
+            const progressText = document.getElementById("progressText");
+
+            const progressPercentage = totalTasks === 0 ? 0 : (completedTasks / totalTasks) * 100;
+            progressBar.value = progressPercentage;
+            progressText.textContent = `${Math.round(progressPercentage)}%`;
+        }
+
+        function updateTaskText(taskId, newText) {
+            const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            const taskIndex = storedTasks.findIndex(task => task.id === taskId);
+            if (taskIndex !== -1) {
+                storedTasks[taskIndex].text = newText;
+                localStorage.setItem('tasks', JSON.stringify(storedTasks));
+            }
+        }
+
+        function updateDueDate(taskId, newDueDate) {
+            const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            const taskIndex = storedTasks.findIndex(task => task.id === taskId);
+            if (taskIndex !== -1) {
+                storedTasks[taskIndex].dueDate = newDueDate;
+                localStorage.setItem('tasks', JSON.stringify(storedTasks));
+            }
+        }
+
+        function deleteTask(taskId) {
+            const taskDiv = document.getElementById(taskId);
+            taskDiv.parentElement.removeChild(taskDiv);
+
+            const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            const updatedTasks = storedTasks.filter(task => task.id !== taskId);
+            localStorage.setItem('tasks', JSON.stringify(updatedTasks));
+            updateProgress();
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const taskId = event.dataTransfer.getData("text");
+            const taskDiv = document.getElementById(taskId);
+            const quadrantId = event.currentTarget.id;
+            const tasksContainer = document.getElementById(`tasks-${quadrantId}`);
+            tasksContainer.appendChild(taskDiv);
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
